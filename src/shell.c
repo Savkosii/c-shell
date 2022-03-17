@@ -298,14 +298,14 @@ static void redirect_overwrite_fstream(char *command) {
     }
 
     struct entry *entry = get_entries_chain(matched_paths[0]);
+    if (!is_entry_located(entry) && !is_directory_write_permitted(entry->previous)) {
+        die("shell: cannot create '%s' : Permission denied", entry->received_path);
+    }
     if (is_directory(entry)) {
         die("shell: Error: cannot overwrite directory '%s'", entry->received_path);
     }
-    if (!is_directory_write_permitted(entry->previous)) {
-        die("shell: cannot create '%s' : Permission denied", entry->received_path);
-    }
     if (is_file(entry) && !is_file_write_permitted(entry)) {
-        die("shell: cannot overwrite '%s' : Permission denied", entry->received_path);
+        die("shell: cannot open '%s' : Permission denied", entry->received_path);
     }
 
     int file_mode_bit = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
@@ -339,14 +339,14 @@ static void redirect_append_fstream(char *command) {
     }
 
     struct entry *entry = get_entries_chain(matched_paths[0]);
+    if (!is_entry_located(entry) && !is_directory_write_permitted(entry->previous)) {
+        die("shell: cannot create '%s' : Permission denied", entry->received_path);
+    }
     if (is_directory(entry)) {
         die("shell: Error: cannot overwrite directory '%s'", entry->received_path);
     }
-    if (!is_directory_write_permitted(entry->previous)) {
-        die("shell: cannot create '%s' : Permission denied", entry->received_path);
-    }
     if (is_file(entry) && !is_file_write_permitted(entry)) {
-        die("shell: cannot overwrite '%s' : Permission denied", entry->received_path);
+        die("shell: cannot open '%s' : Permission denied", entry->received_path);
     }
 
     int file_mode_bit = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
@@ -606,5 +606,3 @@ int main(){
     }
     return 0;
 }
-
-
