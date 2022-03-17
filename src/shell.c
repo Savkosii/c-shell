@@ -277,7 +277,7 @@ static void read_multiple_lines(char *command) {
 }
 
 /* Don't call this function unless in child process */
-static int redirect_overwrite_fstream(char *command) {
+static void redirect_overwrite_fstream(char *command) {
     char path[MAX_LEN], *p = command, *t;
     while ((p = strstr(p, ">")) != NULL) {
         *p++ = ' ';
@@ -294,9 +294,7 @@ static int redirect_overwrite_fstream(char *command) {
     int matched_path_nums;
     load_paths(path, matched_paths, &matched_path_nums);
     if (matched_path_nums > 1) {
-        log_error("%s: ambiguous redirect", path);
-        free_paths(matched_paths, matched_path_nums);
-        return -1;
+        die("%s: ambiguous redirect", path);
     }
 
     struct entry *entry = get_entries_chain(matched_paths[0]);
@@ -316,12 +314,10 @@ static int redirect_overwrite_fstream(char *command) {
 
     free(matched_paths[0]);
     free_entry(entry);
-
-    return 0;
 }
 
 /* Don't call this function unless in child process */
-static int redirect_append_fstream(char *command) {
+static void redirect_append_fstream(char *command) {
     char path[MAX_LEN], *p = command, *t;
     while ((p = strstr(p, ">>")) != NULL) {
         memcpy(p, "  ", 2);
@@ -339,9 +335,7 @@ static int redirect_append_fstream(char *command) {
     int matched_path_nums;
     load_paths(path, matched_paths, &matched_path_nums);
     if (matched_path_nums > 1) {
-        log_error("%s: ambiguous redirect", path);
-        free_paths(matched_paths, matched_path_nums);
-        return -1;
+        die("%s: ambiguous redirect", path);
     }
 
     struct entry *entry = get_entries_chain(matched_paths[0]);
@@ -361,8 +355,6 @@ static int redirect_append_fstream(char *command) {
 
     free(matched_paths[0]);
     free_entry(entry);
-
-    return 0;
 }
 
 /* This function actually serves like strtok_r, but it regards the whole string as one delimiter, 
@@ -508,14 +500,11 @@ static void exec_once(char *command) {
     }
 
     if (strstr(command, ">>")) {
-        if (redirect_append_fstream(command) == -1) {
-            exit(1);
-        }
+        redirect_append_fstream(command);
+            
 
     } else if (strstr(command, ">")) {
-        if (redirect_overwrite_fstream(command) == -1) {
-            exit(1);
-        }
+        redirect_overwrite_fstream(command);
     }
     
     load_argv(command, argv, &argc);
