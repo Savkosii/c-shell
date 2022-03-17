@@ -20,11 +20,11 @@ static const char *sys_home_directory;
 static const char *app_home_directory;
 
 
-/*   This function reads from stdin, omitting space char
- *   before reading the first non-space char and after reading the last one
+/*   This function reads from stdin, omitting space char before
+ *   reading the first non-space char and after reading the last one.
  *
  *   When encountering '\n' or EOF, it will stop input, and return the nums of char writen,
- *   including '\0', in the former case, and EOF in the latter case  
+ *   including '\0', in the former case, and EOF in the latter case.
  */
 static int read_command(char *buffer, size_t buffer_max_size) {
     int ch, count = 0;
@@ -204,7 +204,7 @@ static bool catch_syntax_error(const char *line) {
         catch_delimiter_error(line, "&&", BEGIN_WITH_DELIMITER | DELIMITER_CONCAT | EMPTY_BETWEEN_DEMILITER) || \
         catch_delimiter_error(line, "|",  BEGIN_WITH_DELIMITER | DELIMITER_CONCAT | EMPTY_BETWEEN_DEMILITER) || \
         catch_delimiter_error(line, "<<", DELIMITER_CONCAT | EMPTY_BETWEEN_DEMILITER)                        || \
-        catch_delimiter_error(line, ">",  EMPTY_BETWEEN_DEMILITER) || \
+        catch_delimiter_error(line, ">",  EMPTY_BETWEEN_DEMILITER)                                           || \
         catch_delimiter_error(line, ">>", DELIMITER_CONCAT | EMPTY_BETWEEN_DEMILITER)) {
         return true;
     }
@@ -299,10 +299,23 @@ static int redirect_overwrite_fstream(char *command) {
         return -1;
     }
 
+    struct entry *entry = get_entries_chain(matched_paths[0]);
+    if (is_directory(entry)) {
+        die("shell: Error: cannot overwrite directory '%s'", entry->received_path);
+    }
+    if (!is_directory_write_permitted(entry->previous)) {
+        die("shell: cannot create '%s' : Permission denied", entry->received_path);
+    }
+    if (is_file(entry) && !is_file_write_permitted(entry)) {
+        die("shell: cannot overwrite '%s' : Permission denied", entry->received_path);
+    }
+
     int file_mode_bit = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
     int fstream_fd = open(matched_paths[0], O_RDWR | O_CREAT | O_TRUNC, file_mode_bit);
     dup2(fstream_fd, fileno(stdout));
+
     free(matched_paths[0]);
+    free_entry(entry);
 
     return 0;
 }
@@ -331,20 +344,33 @@ static int redirect_append_fstream(char *command) {
         return -1;
     }
 
+    struct entry *entry = get_entries_chain(matched_paths[0]);
+    if (is_directory(entry)) {
+        die("shell: Error: cannot overwrite directory '%s'", entry->received_path);
+    }
+    if (!is_directory_write_permitted(entry->previous)) {
+        die("shell: cannot create '%s' : Permission denied", entry->received_path);
+    }
+    if (is_file(entry) && !is_file_write_permitted(entry)) {
+        die("shell: cannot overwrite '%s' : Permission denied", entry->received_path);
+    }
+
     int file_mode_bit = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
     int fstream_fd = open(matched_paths[0], O_RDWR | O_CREAT | O_APPEND, file_mode_bit);
     dup2(fstream_fd, fileno(stdout));
+
     free(matched_paths[0]);
+    free_entry(entry);
 
     return 0;
 }
 
 /* This function actually serves like strtok_r, but it regards the whole string as one delimiter, 
- * rather than a set of delimiter char.
+ * rather than a set of char delimiters.
  *
  * What's more, the empty sequences before and after the return string value will be removed.
  * 
- * if the function has to return an empty string, it will return NULL instead.
+ * If the function has to return an empty string, it will return NULL instead.
 */
 static char * strtok_l(char *string, const char *delimiter, char **save_ptr) {
     char *p, *t, *retval;
@@ -372,7 +398,7 @@ static char * strtok_l(char *string, const char *delimiter, char **save_ptr) {
     while (isspace(*t)) *t-- = '\0';
     for (const char *q = delimiter; *q; q++) *p++ = '\0';
     *save_ptr = p;
-    
+
     return retval;
 }
 
@@ -482,10 +508,14 @@ static void exec_once(char *command) {
     }
 
     if (strstr(command, ">>")) {
-        redirect_append_fstream(command);
+        if (redirect_append_fstream(command) == -1) {
+            exit(1);
+        }
 
     } else if (strstr(command, ">")) {
-        redirect_overwrite_fstream(command);
+        if (redirect_overwrite_fstream(command) == -1) {
+            exit(1);
+        }
     }
     
     load_argv(command, argv, &argc);
