@@ -1,8 +1,8 @@
-### In brief
+## In brief
 
 This project involves a simple program in imitation of Linux bash, plus several useful executable files serving as commands, all of which are fully implemented by C.
 
-### Quick Start
+## Quick Start
 
 ```bash
 git clone https://github.com/Savkosii/ezShell
@@ -14,17 +14,15 @@ make && make clean
 ./shell
 ```
 
-### Features
+## Features of Shell
 
-#### Shell
-
-##### Prompt
+### Prompt
 
 Prompt like bash do. The format of the prompt is `[username]@[groupname]:[current working directory][ch]`, where ch is `#` if in root, and `$` otherwise.
 
 What's more, when prompting, the system home directory will be folded into `~`.
 
-##### Wildcard path
+### Wildcard path
 
 Support wildcard path.
 
@@ -36,7 +34,7 @@ echo ~/*
 cd /hom?
 ```
 
-##### cd
+### cd
 
 Supports built-in command `cd`, which is equipped to change the current working directory.
 
@@ -61,7 +59,7 @@ cd foo bar (too much arguments)
 cd /* (too much arguments)
 ```
 
-##### Execute files
+### Execute files
 
 Support executing files. The first parameter specifies the path of file, and the others compose the arguments of the program.
 
@@ -74,7 +72,7 @@ Example :
 /bin/sh -c whoami
 ```
 
-##### Execute multiple commands
+### Execute multiple commands
 
 Supports commands delimiters, i.e.  `&&` and `;`. This enables shell to execute multiple commands in one line. 
 
@@ -82,7 +80,7 @@ For example, `cd foo && ls`  will tell the shell to switch the working directory
 
 Note that it is illegal for the line to start with delimiter `;` or `&&`,  or lack non-space char between two same delimiters, which will trigger syntax error. Fortunately, it is allowed for the line to end with delimiter `;` or `&&`, though in the latter case the commands in line are regarded as incomplete, and thus will cause the shell to read next line from stdin, the act of which will continue until shell gets the complete commands.
 
-##### File stream redirect
+### File stream redirect
 
 Supports file stream redirect, with overwrite stream sign `>` or append stream sign `>>`, the string after which specifies the target file.
 
@@ -92,13 +90,13 @@ Note that if there already exists directory `./foo` or write-protected file `./f
 
 Also be aware that if there is a lack of file path after the redirect stream sign, shell will read one additional line from stdin and you can append the path then.
 
-##### Reading multiple lines
+### Reading multiple lines
 
 Supports reading multiple lines from stdin, with input-lines sign `<<`, the string after which specifies the end-input-flag string.
 
 For example, `cat << foo` will trigger input from stdin, where you can write arbitrary numbers of lines unless you input `foo\n`. And like the case where the commands end with redirect stream sign, if there is a lack of end-input-flag string, shell will read one additional line from stdin and you can append it then.
 
-##### Pipes
+### Pipes
 
 Support commands with pipes. When you split commands with delimiter `|` (its syntax is similar to that of `&&`), the output or input or both related the commands will be redirected.
 
@@ -106,9 +104,9 @@ Take commands `echo foo | cat -b | cat -e ` , shell will first execute command `
 
 Note that if you use read-multiple-lines sign in command that equipped with pipes, shell will omit the commands before it, e.g. `ls | cat -e | cat -b << foo | cat -T` , shell will only execute `cat -b << foo | cat -T`.
 
-#### Commands
+## Favorable Commands
 
-##### cat
+### cat
 
 Read from stream, stdin in default.
 
@@ -141,7 +139,7 @@ cat foo    (where foo is a directory)
 cat foo    (where foo is a read-protected file)
 ```
 
-##### chmod
+### chmod
 
 Change files permission mode bits. You can use number (ranging from 000 to 777) to specify the mode bits or use option `-u=` to do so.
 
@@ -179,7 +177,7 @@ Note :
 
 You can use command `ls -l` to check the permission information of file
 
-##### cp
+### cp
 
 Copy files or directories.
 
@@ -232,7 +230,7 @@ cp foo bar          -r (where bar contains a write-protected directory named "fo
 cp foo bar          -r (where bar contains a file named "foo")
 ```
 
-##### echo
+### echo
 
 Output specified path to stdout (does not check whether the path exists)
 
@@ -246,7 +244,7 @@ echo /*
 echo ~ >> flag
 ```
 
-##### ls
+### ls
 
 List existent files or entries in directories and output the result to stdout.
 
@@ -278,7 +276,7 @@ ls foo  (where foo is read-protected file)
 ls foo  (where foo is read-protected directory)
 ```
 
-##### mkdir
+### mkdir
 
 Make directory.
 
@@ -313,7 +311,7 @@ mkdir foo/bar/baz -p (where foo/bar/baz already exists)
 mkdir foo/bar/baz -p (where foo/bar is a file)
 ```
 
-##### mv
+### mv
 
 Change files or directories path (filename can be changed at the same time)
 
@@ -359,11 +357,11 @@ mv foo bar         (where bar contains a non-empty directory named "foo")
 mv foo bar         (where bar contains a write-protected directory named "foo")
 ```
 
-##### pwd
+### pwd
 
 Print the current working directory (in realpath) to stdout.
 
-##### realpath
+### realpath
 
 Get the realpath of specified path and output it to stdout. In default, there is no need for the path to exist.
 
@@ -381,7 +379,7 @@ realpath /*
 realpath ~
 ```
 
-##### rm
+### rm
 
 Remove files or directory.
 
@@ -412,7 +410,7 @@ rm  foo -r (where foo is write-protected)
 rm  foo -r (where foo contains write-protected file or directory)
 ```
 
-##### whoami
+### whoami
 
 Print the username to stdout.
 
