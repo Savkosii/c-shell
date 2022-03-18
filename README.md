@@ -5,13 +5,13 @@ This project involves a simple program in imitation of Linux bash, plus several 
 ## Quick Start
 
 ```bash
-git clone https://github.com/Savkosii/ezShell
+$ git clone https://github.com/Savkosii/ezShell
 
-cd ezShell/src
+$ cd ezShell/src
 
-make && make clean
+$ make && make clean
 
-./shell
+$ ./shell
 ```
 
 ## Features of Shell
@@ -41,7 +41,7 @@ Supports built-in command `cd`, which is equipped to change the current working 
 Example :
 
 ```bash
-cd (equivalent to cd ~)
+cd     (equivalent to cd ~)
 cd foo
 cd ..
 cd /../home
@@ -52,11 +52,11 @@ cd ~/foo
 Throw exception in the following cases :
 
 ```bash
-cd foo (where foo dose not exists)
-cd foo (where foo is not a directory)
-cd foo (where foo is a read-protected directory)
+cd foo     (where foo dose not exists)
+cd foo     (where foo is not a directory)
+cd foo     (where foo is a read-protected directory)
 cd foo bar (too much arguments)
-cd /* (too much arguments)
+cd /*      (too much arguments)
 ```
 
 ### Execute files
@@ -68,25 +68,33 @@ Note that although command actually is file in essence, for convenience we disti
 Example :
 
 ```bash
-./ls -l
+./ls    -l
 /bin/sh -c whoami
 ```
-
+Throw exception in the following cases :
+```bash
+foo    (where command foo is not found)
+./foo  (where file foo does not exist)
+```
 ### Execute multiple commands
 
 Supports commands delimiters, i.e.  `&&` and `;`. This enables shell to execute multiple commands in one line. 
 
 For example, `cd foo && ls`  will tell the shell to switch the working directory into directory `foo`, and execute command `ls` then.
 
-Note that it is illegal for the line to start with delimiter `;` or `&&`,  or lack non-space char between two same delimiters, which will trigger syntax error. Fortunately, it is allowed for the line to end with delimiter `;` or `&&`, though in the latter case the commands in line are regarded as incomplete, and thus will cause the shell to read next line from stdin, the act of which will continue until shell gets the complete commands.
+Note that it is illegal for the line to start with delimiter `;` or `&&`,  or lack non-space char between two same delimiters, which will trigger syntax error.
+
+Fortunately, it is allowed for the line to end with delimiter `;` or `&&`, though in the latter case the commands in line are regarded as incomplete, and thus will cause the shell to read next line from stdin, the act of which will continue until shell gets the complete commands.
 
 ### File stream redirect
 
 Supports file stream redirect, with overwrite stream sign `>` or append stream sign `>>`, the string after which specifies the target file.
 
-Take commands `ls > foo`, it will open file `./foo` (which will be created if not existent) before executing command `ls`, and the output of `ls` will be writen to file `./foo` instead of stdout. Note that if there is no output to stdout, e.g. ` > foo`, shell will create an empty file then. 
+Take commands `ls > foo`, it will open file `./foo` (which will be created if not existent) before executing command `ls`, and the output of `ls` will be writen to file `./foo` instead of stdout. 
 
-Note that if there already exists directory `./foo` or write-protected file `./foo` , shell will not enable the redirect and throw exception then. 
+Note that if there is no output to stdout, e.g. ` > foo`, shell will create an empty file then. 
+
+Moreover, if there already exists directory `./foo` or write-protected file `./foo` , shell will not enable the redirect and throw exception then. 
 
 Also be aware that if there is a lack of file path after the redirect stream sign, shell will read one additional line from stdin and you can append the path then.
 
@@ -94,11 +102,13 @@ Also be aware that if there is a lack of file path after the redirect stream sig
 
 Supports reading multiple lines from stdin, with input-lines sign `<<`, the string after which specifies the end-input-flag string.
 
-For example, `cat << foo` will trigger input from stdin, where you can write arbitrary numbers of lines unless you input `foo\n`. And like the case where the commands end with redirect stream sign, if there is a lack of end-input-flag string, shell will read one additional line from stdin and you can append it then.
+For example, `cat << foo` will trigger input from stdin, where you can write arbitrary numbers of lines unless you input `foo\n`. 
+
+And like the case where the commands end with redirect stream sign, if there is a lack of end-input-flag string, shell will read one additional line from stdin and you can append it then.
 
 ### Pipes
 
-Support commands with pipes. When you split commands with delimiter `|` (its syntax is similar to that of `&&`), the output or input or both related the commands will be redirected.
+Support commands with pipes. When you split commands with delimiter `|` (its syntax is similar to that of `&&`), the output or input or both related to the commands will be redirected.
 
 Take commands `echo foo | cat -b | cat -e ` , shell will first execute command `echo foo` and redirect its output to stdin, and the command `cat-b` will read from stdin and redirect its output to stdin, and the command `cat -e` will also read from stdin but output to stdout as normal. Thus the output is `1  foo$` .
 
@@ -143,7 +153,7 @@ cat foo    (where foo is a read-protected file)
 
 Change files permission mode bits. You can use number (ranging from 000 to 777) to specify the mode bits or use option `-u=` to do so.
 
-There are three digits in number that serves as mode bits (if not, we will add zero infront of it as complement). The first digit represents the Owner permission, with the second one representing the Group permission, and the third one representing the Others permission. Each digit can be obtained though a linear combination of {4, 2, 1, 0}, where "4" represents "read", and "2" represents "write", and "1" represents "execute", and "0" represents "no permission".
+There are three digits in number that serves as mode bits (if not, we will add zero in front of it as complement). The first digit represents the Owner permission, with the second one representing the Group permission, and the third one representing the Others permission. Each digit can be obtained though a linear combination of {4, 2, 1, 0}, where "4" represents "read", and "2" represents "write", and "1" represents "execute", and "0" represents "no permission".
 
 Favorable option :
 
