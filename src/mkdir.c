@@ -1,4 +1,4 @@
-#include <string.h>
+#include <ctype.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -16,7 +16,7 @@ static int make_directory_once(const struct entry *entry, mode_t mode_bits, cons
         return -1;
     }
 
-    return mkdir(entry->real_path, mode_bits);
+    return mkdir(entry->real_path, mode_bits) | chmod(entry->real_path, mode_bits);
 }
 
 static int make_directory_recursively(const struct entry *entry, mode_t mode_bits, const int option[]) {
@@ -65,10 +65,14 @@ static int make_directory_recursively(const struct entry *entry, mode_t mode_bit
                     die("mkdir: cannot create directory '%s': Not a directory", subdirectory->received_path);
                 }
             }
-            retval |= make_directory_once(subdirectory, mode_bits, option);
+            retval |= make_directory_once(subdirectory, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH, option);
             free_entry(subdirectory);
         }
     }
+    
+    free(pathdup);
+
+    chmod(entry->received_path, mode_bits);
 
     return retval;
 }
@@ -106,6 +110,70 @@ static int make_directories(char *paths[], size_t path_nums, mode_t mode_bits, c
     return retval;
 }
 
+static bool is_nums_sequence(const char *string) {
+    while (*string) {
+        if (!isdigit(*string++)) return false;
+    }
+    return true;
+}
+
+static bool is_rwx_sequence(const char *string) {
+    for (;*string; string++) {
+        if (*string != 'r' && *string != 'w' && *string != 'x') return false;
+    }
+    return true;
+}
+
+static mode_t analyze_nums_mode_bits(const char *string){
+    char buffer[3];
+    mode_t mode_bits = 0;
+    size_t len = strlen(string);
+    memset(buffer, 0, sizeof (buffer));
+
+    if (len > 3) {
+        die("mkdir: invalid mode: '%s'", string);
+    }
+
+    if (len == 1) {
+        buffer[2] = *string;
+
+    } else if (len == 2) {
+        buffer[1] = *string;
+        buffer[2] = *(string + 1);
+
+    } else {
+        memcpy(buffer, string, sizeof (buffer));
+    }
+
+    int n = *buffer - '0';
+    if (n == 1) mode_bits |= S_IXUSR;
+    if (n == 2) mode_bits |= S_IWUSR;
+    if (n == 3) mode_bits |= S_IXUSR | S_IWUSR;
+    if (n == 4) mode_bits |= S_IRUSR;
+    if (n == 5) mode_bits |= S_IXUSR | S_IRUSR;
+    if (n == 6) mode_bits |= S_IRUSR | S_IWUSR;
+    if (n == 7) mode_bits |= S_IRUSR | S_IWUSR | S_IXUSR;
+
+    n = *(buffer + 1) - '0';
+    if (n == 1) mode_bits |= S_IXGRP;
+    if (n == 2) mode_bits |= S_IWGRP;
+    if (n == 3) mode_bits |= S_IXGRP | S_IWGRP;
+    if (n == 4) mode_bits |= S_IRGRP;
+    if (n == 5) mode_bits |= S_IXGRP | S_IRGRP;
+    if (n == 6) mode_bits |= S_IRGRP | S_IWGRP;
+    if (n == 7) mode_bits |= S_IRGRP | S_IWGRP | S_IXGRP;
+
+    n = *(buffer + 2) - '0';
+    if (n == 1) mode_bits |= S_IXOTH;
+    if (n == 2) mode_bits |= S_IWOTH;
+    if (n == 3) mode_bits |= S_IXOTH | S_IWOTH;
+    if (n == 4) mode_bits |= S_IROTH;
+    if (n == 5) mode_bits |= S_IXOTH | S_IROTH;
+    if (n == 6) mode_bits |= S_IROTH | S_IWOTH;
+    if (n == 7) mode_bits |= S_IROTH | S_IWOTH | S_IXOTH;
+    return mode_bits;
+}
+
 static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits_buf) {
     const char *p;
     mode_t mode_bits = 0;
@@ -115,7 +183,6 @@ static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits
             p = arg + 2;
             if (strcmp(p, "parent") == 0) {
                 option_buf['p'] = 1;
-                mode_bits = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
                 return true;
 
             } else if (strncmp(p, "mode", 4) == 0) {
@@ -137,7 +204,6 @@ static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits
 
             if (*p == 'p') {
                 option_buf['p'] = 1;
-                mode_bits = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;
                 return true;
 
             } else if (*p == 'm') {
@@ -152,8 +218,7 @@ static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits
             }
         }
 
-        if (option_buf['p'] != 1) {
-            mode_bits = 0;
+        if (is_rwx_sequence(p)) {
             for (const char *q = p; *q; q++) {
                 if (*q == 'r') {
                     mode_bits |= S_IRUSR | S_IRGRP | S_IROTH;
@@ -161,13 +226,16 @@ static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits
                 } else if (*q == 'w') {
                     mode_bits |= S_IWUSR | S_IWGRP;
 
-                } else if (*q == 'x') {
-                    mode_bits |= S_IXUSR | S_IXGRP | S_IXOTH;
-
                 } else {
-                    die("mkdir: invalid mode '%s'", p);
+                        mode_bits |= S_IXUSR | S_IXGRP | S_IXOTH;
                 }
             }
+
+        } else if (is_nums_sequence(p)){
+            mode_bits = analyze_nums_mode_bits(p);
+
+        } else {
+            die("mkdir: invalid mode '%s'", p);
         }
 
         *mode_bits_buf = mode_bits;
@@ -176,6 +244,7 @@ static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits
     }
     else return false;
 }
+
 
 static void parse(int argc, char *argv[], mode_t *mode_bits_buf, int *option_buf, char *paths_buf[], size_t *path_nums_buf) {
     mode_t mode_bits = S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH;

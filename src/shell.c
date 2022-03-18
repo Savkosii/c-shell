@@ -19,6 +19,8 @@ static const char *sys_home_directory;
 
 static const char *app_home_directory;
 
+static int exec(char *line);
+
 
 /*   This function reads from stdin, omitting space char before
  *   reading the first non-space char and after reading the last one.
@@ -152,8 +154,9 @@ static void load_paths(const char *path, char *paths_buf[], int *path_nums_buf) 
 }
 
 /* the memory is allocated by malloc, and thus needs to be freed manually */
-static void load_argv(char *command, char *argv[], int *argc_buf) {
+static int load_argv(char *command, char *argv[], int *argc_buf) {
     *argc_buf = 0;
+
     for (char *token, *p = strtok_r(command, " ", &token); p; p = strtok_r(NULL, " ", &token)) {
         if (*p == '-') {
             argv[*argc_buf] = strdup(p);
@@ -165,7 +168,13 @@ static void load_argv(char *command, char *argv[], int *argc_buf) {
             load_paths(p, argv, argc_buf);
         }
     }
+
     argv[*argc_buf] = NULL;
+    if (*argc_buf == 0) {
+        return -1;
+    }
+
+    return 0;
 }
 
 static void free_paths(char *paths[], size_t path_nums) {
@@ -225,24 +234,22 @@ static int load_full_command(char *line) {
     while (is_end_with_delimiter(line, "&&") || is_end_with_delimiter(line, "|") || \
            is_end_with_delimiter(line, "<<") || is_end_with_delimiter(line, ">") || \
            is_end_with_delimiter(line, ">>")) {
+        int nbytes;
         size_t offset = strlen(line);
         fputs("> ", stdout);
-        if (offset > MAX_LEN) {
-            die("shell: Error: buffer overflowed");
-        }
-        int count = 0;
-        if (read_command(line + offset, MAX_LEN - offset) == EOF) {
+        nbytes = read_command(line + offset, MAX_LEN - offset);
+        if (nbytes == EOF) {
             return -1;
+        }
+        if (nbytes > MAX_LEN - offset) {
+            die("shell: Error: buffer overflowed");
         }
     }
     return 0;
 }
 
-/* Don't call this function unless in child process */
-static void read_multiple_lines(char *command) {
-    int pipe_fd[2];
-    char read_buf[MAX_LEN], *p = command, *s = read_buf;
-
+static void read_multiple_lines(char *command, char *lines_buf) {
+    char *p = command;
     while ((p = strstr(p, "<<")) != NULL) {
         char end_input_flag[MAX_LEN], line[MAX_LEN], *t = end_input_flag;
         size_t buf_len = 0;
@@ -258,22 +265,16 @@ static void read_multiple_lines(char *command) {
         }
 
         memcpy(t, "\n", 2);
-
         fputs("> ", stdout);
         while ((nbytes = read_line(line, MAX_LEN)) != EOF && strcmp(line, end_input_flag) != 0) {
             if ((buf_len += nbytes - 1) > MAX_LEN) {
                 die("shell: Error: buffer overflowed");
             }
-            snprintf(s, MAX_LEN, "%s", line);
-            s += nbytes - 1;
+            snprintf(lines_buf, MAX_LEN, "%s", line);
+            lines_buf += nbytes - 1;
             fputs("> ", stdout);
         }
     }
-
-    pipe(pipe_fd);
-    write(pipe_fd[1], read_buf, strlen(read_buf));
-    close(pipe_fd[1]);
-    dup2(pipe_fd[0], fileno(stdin));
 }
 
 /* Don't call this function unless in child process */
@@ -492,22 +493,28 @@ static int cd(size_t argc, char *argv[]) {
 
 
 /* This function does not call fork() before execution, and thus has to call it manually */
-static void exec_once(char *command) {
+static void exec_once(char *command, const char *lines_buf) {
+    int pipe_fd[2];
     int argc;
     char *argv[MAX_SIZE];
-    if (strstr(command, "<<")) {
-        read_multiple_lines(command);
+
+    if (*lines_buf != '\0') {
+        pipe(pipe_fd);
+        write(pipe_fd[1], lines_buf, strlen(lines_buf));
+        close(pipe_fd[1]);
+        dup2(pipe_fd[0], fileno(stdin));
     }
 
     if (strstr(command, ">>")) {
         redirect_append_fstream(command);
             
-
     } else if (strstr(command, ">")) {
         redirect_overwrite_fstream(command);
     }
     
-    load_argv(command, argv, &argc);
+    if (load_argv(command, argv, &argc) == -1) {
+        exit(1);
+    }
 
     if (locate_application_path(&argv[0]) == -1) {
         free_paths(argv,argc);
@@ -518,6 +525,13 @@ static void exec_once(char *command) {
 }
 
 static int exec_normal_command(char *command) {
+    char lines_buf[MAX_LEN];
+    memset(lines_buf, 0, sizeof (lines_buf));
+
+    if (strstr(command, "<<")) {
+        read_multiple_lines(command, lines_buf);
+    }
+
     if (strncmp(command, "cd", 2) == 0) {
         char *argv[MAX_SIZE];
         int argc;
@@ -526,7 +540,7 @@ static int exec_normal_command(char *command) {
 
     } else {
         if (fork() == 0) {
-            exec_once(command);
+            exec_once(command, lines_buf);
         }
     }
 
@@ -535,20 +549,37 @@ static int exec_normal_command(char *command) {
 
 
 static void exec_commands_with_pipes(char *line) {
-    char *commands[MAX_SIZE];
+    char *commands[MAX_SIZE], *p;
     size_t command_nums = 0;
-    for (char *token, *p = strtok_l(line, "|", &token); p; p = strtok_l(NULL, "|", &token)) {
+
+    if ((p = strstr(line, "<<")) != NULL) {  //escape the commands before the read-multiple-lines sign "<<"
+        while (p >= line && *p != '|') p--;
+        p += 1;
+        if (p != line) {
+            line = p;
+            exec(line);
+            return;
+        }
+    }
+
+    for (char *token, *p = strtok_r(line, "|", &token); p; p = strtok_r(NULL, "|", &token)) {
         commands[command_nums++] = p;
     }
-    int pipes[command_nums - 1][2];
 
+    int pipes[command_nums - 1][2];
     for (size_t i = 0; i < command_nums; i++) {
+        char lines_buf[MAX_LEN];
+        memset(lines_buf, 0, sizeof (lines_buf));
+        if (strstr(commands[i], "<<")) {
+            read_multiple_lines(commands[i], lines_buf);
+        }
+
         if (i == 0) {
             pipe(pipes[i]);
             if (fork() == 0) {
                 close(pipes[i][0]);
                 dup2(pipes[i][1], fileno(stdout));
-                exec_once(commands[i]);
+                exec_once(commands[i], lines_buf);
             }
             close(pipes[i][1]);
 
@@ -557,7 +588,7 @@ static void exec_commands_with_pipes(char *line) {
             if (fork() == 0) {
                 dup2(pipes[i-1][0], fileno(stdin));
                 dup2(pipes[i][1], fileno(stdout));
-                exec_once(commands[i]);
+                exec_once(commands[i], lines_buf);
             }
             close(pipes[i-1][0]);
             close(pipes[i][1]);
@@ -565,7 +596,7 @@ static void exec_commands_with_pipes(char *line) {
         } else {
             if (fork() == 0) {
                 dup2(pipes[i-1][0], fileno(stdin));
-                exec_once(commands[i]);
+                exec_once(commands[i], lines_buf);
             }
             close(pipes[i-1][0]);
         }

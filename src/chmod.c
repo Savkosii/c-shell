@@ -5,6 +5,32 @@
 
 #include "api/entry.h"
 
+static int change_file_mode(struct entry *entry, mode_t mode_bits) {
+    if (!is_entry_located(entry)) {
+        log_error("chmod: cannot access '%s': No such file or directory", entry->received_path);
+        return -1;
+    }
+
+    if (!is_directory_read_permitted(entry->previous)) {
+        log_error("chmod: cannot access '%s': Permission denied", entry->received_path);
+        return -1;
+    }
+
+    return chmod(entry->real_path, mode_bits);
+}
+
+static int change_files_mode(char *paths[], size_t path_nums, mode_t mode_bits) {
+    int retval = 0;
+
+    for (size_t i = 0; i < path_nums; i++) {
+        struct entry *entry = get_entries_chain(paths[i]);
+        retval |= change_file_mode(entry, mode_bits);
+        free_entry(entry);
+    }
+    
+    return retval;
+}
+
 static bool is_nums_sequence(const char *string) {
     while (*string) {
         if (!isdigit(*string++)) return false;
@@ -12,7 +38,7 @@ static bool is_nums_sequence(const char *string) {
     return true;
 }
 
-static mode_t analyze_mode_bits(char *string){
+static mode_t analyze_mode_bits(const char *string){
     char buffer[3];
     mode_t mode_bits = 0;
     size_t len = strlen(string);
@@ -60,32 +86,6 @@ static mode_t analyze_mode_bits(char *string){
     if (n == 6) mode_bits |= S_IROTH | S_IWOTH;
     if (n == 7) mode_bits |= S_IROTH | S_IWOTH | S_IXOTH;
     return mode_bits;
-}
-
-static int change_file_mode(struct entry *entry, mode_t mode_bits) {
-    if (!is_entry_located(entry)) {
-        log_error("chmod: cannot access '%s': No such file or directory", entry->received_path);
-        return -1;
-    }
-
-    if (!is_directory_read_permitted(entry->previous)) {
-        log_error("chmod: cannot access '%s': Permission denied", entry->received_path);
-        return -1;
-    }
-
-    return chmod(entry->real_path, mode_bits);
-}
-
-static int change_files_mode(char *paths[], size_t path_nums, mode_t mode_bits) {
-    int retval = 0;
-
-    for (size_t i = 0; i < path_nums; i++) {
-        struct entry *entry = get_entries_chain(paths[i]);
-        retval |= change_file_mode(entry, mode_bits);
-        free_entry(entry);
-    }
-    
-    return retval;
 }
 
 static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits_buf) {
