@@ -95,7 +95,7 @@ static int read_file_once(struct entry *file, const int option[]) {
             replace_end_of_line_sign(string_builder);
         }
 
-        if (option['T'] == 1) {
+        if (option['t'] == 1) {
             replace_tab_char(string_builder);
         }
 
@@ -125,11 +125,11 @@ static bool try_match_option(const char *arg, int *option_buf) {
         if (*(arg + 1) == '-') {
             p = arg + 2;
             if (strcmp(p, "show-all") == 0) {
+                option_buf['t'] = 1;
                 option_buf['e'] = 1;
-                option_buf['T'] = 1;
-
+                
             } else if (strcmp(p, "number-nonblank") == 0) {
-                option_buf['B'] = 1;
+                option_buf['b'] = 1;
 
             } else if (strcmp(p, "show-ends") == 0) {
                 option_buf['e'] = 1;
@@ -141,7 +141,7 @@ static bool try_match_option(const char *arg, int *option_buf) {
                 option_buf['s'] = 1;
 
             } else if (strcmp(p, "show-tabs") == 0) {
-                option_buf['T'] = 1;
+                option_buf['t'] = 1;
 
             } else {
                 die("cat: unknown options '--%s'", p);
@@ -151,7 +151,7 @@ static bool try_match_option(const char *arg, int *option_buf) {
             p = arg + 1;
             while (*p) {
                 if (*p == 'A') {
-                    option_buf['T'] = 1;
+                    option_buf['t'] = 1;
                     option_buf['e'] = 1;
 
                 } else if (*p == 'b') {
@@ -168,8 +168,8 @@ static bool try_match_option(const char *arg, int *option_buf) {
                 } else if (*p == 's') {
                     option_buf['s'] = 1;
 
-                } else if (*p == 'T') {
-                    option_buf['T'] = 1;
+                } else if (*p == 't' || *p == 'T') {
+                    option_buf['t'] = 1;
                     
                 } else {
                     die("cat: unknown options -- '%c'", *p);
