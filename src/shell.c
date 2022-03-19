@@ -77,16 +77,16 @@ static int read_line(char *buffer, size_t buffer_max_size) {
 static void print_prompt() {
     const char *cwd, *username;
     char hostname[MAX_LEN], ch;
-    struct passwd *pwd;
+    struct passwd *passwd;
     size_t path_len;
 
     cwd = getcwd(NULL, 0);
-    pwd = getpwuid(getuid());
-    sys_home_directory = pwd->pw_dir;
-    username = pwd->pw_name;
+    passwd = getpwuid(getuid());
+    sys_home_directory = passwd->pw_dir;
+    username = passwd->pw_name;
     gethostname(hostname, sizeof(hostname));
 
-    if (strcmp(pwd->pw_name, "root") != 0) {
+    if (strcmp(passwd->pw_name, "root") != 0) {
         ch = '$';
 
     } else {
@@ -358,41 +358,36 @@ static void redirect_append_fstream(char *command) {
     free_entry(entry);
 }
 
-/* This function actually serves like strtok_r, but it regards the whole string as one delimiter, 
+/* This function actually serves like strtok_r(), but it regards the whole string as one delimiter,
  * rather than a set of char delimiters.
- *
- * What's more, the empty sequences before and after the return string value will be removed.
- * 
- * If the function has to return an empty string, it will return NULL instead.
 */
 static char * strtok_l(char *string, const char *delimiter, char **save_ptr) {
-    char *p, *t, *retval;
+    char *p, *res;
     if (string != NULL) {
         p = string;
     } 
-
+    
     else {
         if (*save_ptr == NULL) return NULL;
         p = *save_ptr;
     }
 
-    while (isspace(*p)) p++;
-    retval = p;
+    res = p;
 
-    if ((t = strstr(p, delimiter)) == NULL) {
+    if ((p = strstr(p, delimiter)) == NULL) {
         if (*save_ptr != NULL) *save_ptr = NULL;
-        return retval;
+        if (*res == '\0') return NULL;
+        return res;
     }
-
-    if (t == p) return NULL;
-    p = t;
-    t--;
-
-    while (isspace(*t)) *t-- = '\0';
+    
     for (const char *q = delimiter; *q; q++) *p++ = '\0';
     *save_ptr = p;
 
-    return retval;
+    if (*res == '\0') {
+        return strtok_l(p, delimiter, save_ptr);
+    }
+
+    return res;
 }
 
 static int load_commands(char *line, char **commands_buf, size_t *command_nums_buf) {
@@ -455,7 +450,7 @@ static int locate_application_path(char **arg_buf) {
     return retval;
 }
 
-static int cd(size_t argc, char *argv[]) {
+static int cd(int argc, char *argv[]) {
     if (argc > 2) {
         free_paths(argv, argc);
         log_error("cd: too many arguments");
@@ -548,11 +543,11 @@ static int exec_normal_command(char *command) {
 }
 
 
+/* escape the commands before the read-multiple-lines sign "<<" */
 static void exec_commands_with_pipes(char *line) {
     char *commands[MAX_SIZE], *p;
     size_t command_nums = 0;
-
-    if ((p = strstr(line, "<<")) != NULL) {  //escape the commands before the read-multiple-lines sign "<<"
+    if ((p = strstr(line, "<<")) != NULL) {  
         while (p >= line && *p != '|') p--;
         p += 1;
         if (p != line) {
