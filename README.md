@@ -153,7 +153,7 @@ cat foo    (where foo is a read-protected file)
 
 Change files permission mode bits. You can use number (ranging from 000 to 777) to specify the mode bits or use option `-u=` to do so.
 
-There are three digits in number that serves as mode bits (if not, we will add zero in front of it as complement). The first digit represents the Owner permission, with the second one representing the Group permission, and the third one representing the Others permission. Each digit can be obtained though a linear combination of {4, 2, 1, 0}, where "4" represents "read", and "2" represents "write", and "1" represents "execute", and "0" represents "no permission".
+There are three digits in number that serves as mode bits (if not, we will add zero in front of it as complement). The first digit represents the Owner permission, with the second one representing the Group permission, and the third one representing the Others permission. Each digit can be obtained though a linear combination of {4, 2, 1}, where "4" represents "read", and "2" represents "write", and "1" represents "execute".
 
 Favorable option :
 
