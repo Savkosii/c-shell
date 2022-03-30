@@ -292,7 +292,7 @@ static void redirect_overwrite_fstream(char *command) {
     }
 
     char *matched_paths[MAX_LEN];
-    int matched_path_nums;
+    int matched_path_nums = 0;
     load_paths(path, matched_paths, &matched_path_nums);
     if (matched_path_nums > 1) {
         die("%s: ambiguous redirect", path);
@@ -333,7 +333,7 @@ static void redirect_append_fstream(char *command) {
     }
 
     char *matched_paths[MAX_LEN];
-    int matched_path_nums;
+    int matched_path_nums = 0;
     load_paths(path, matched_paths, &matched_path_nums);
     if (matched_path_nums > 1) {
         die("%s: ambiguous redirect", path);
