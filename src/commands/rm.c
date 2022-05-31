@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <dirent.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int remove_file(const struct entry *file, const int option[]) {
     if (option['i'] == 1) {

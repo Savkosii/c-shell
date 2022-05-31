@@ -1,27 +1,28 @@
 CC := gcc
-all: cat chmod cp echo ls mkdir mv pwd realpath rm whoami shell
-cat: cat.o api/entry.o
-	gcc cat.o api/entry.o -o cat
-chmod: chmod.o api/entry.o
-	gcc chmod.o api/entry.o -o chmod
-cp: cp.o api/entry.o
-	gcc cp.o api/entry.o -o cp
-echo:
-ls: ls.o api/entry.o
-	gcc ls.o api/entry.o -o ls
-mkdir: mkdir.o api/entry.o
-	gcc mkdir.o api/entry.o -o mkdir
-mv: mv.o api/entry.o
-	gcc mv.o api/entry.o -o mv
-pwd:
-
-realpath: realpath.o api/entry.o
-	gcc realpath.o api/entry.o -o realpath
-rm: rm.o api/entry.o
-	gcc rm.o api/entry.o -o rm
-shell: shell.o api/entry.o
-	gcc shell.o api/entry.o -o shell
-whoami:
-
+all: commands/cat commands/chmod commands/cp commands/echo commands/ls commands/mkdir commands/mv commands/pwd commands/realpath commands/rm commands/whoami shell-core/shell
+commands/cat: commands/cat.o api/entry.o
+	gcc commands/cat.o api/entry.o -o commands/cat
+commands/chmod: commands/chmod.o api/entry.o
+	gcc commands/chmod.o api/entry.o -o commands/chmod
+commands/cp: commands/cp.o api/entry.o
+	gcc commands/cp.o api/entry.o -o commands/cp
+commands/echo: commands/echo.o
+	gcc commands/echo.o -o commands/echo
+commands/ls: commands/ls.o api/entry.o
+	gcc commands/ls.o api/entry.o -o commands/ls
+commands/mkdir: commands/mkdir.o api/entry.o
+	gcc commands/mkdir.o api/entry.o -o commands/mkdir
+commands/mv: commands/mv.o api/entry.o
+	gcc commands/mv.o api/entry.o -o commands/mv
+commands/pwd: commands/pwd.o
+	gcc commands/pwd.o -o commands/pwd
+commands/realpath: commands/realpath.o api/entry.o
+	gcc commands/realpath.o api/entry.o -o commands/realpath
+commands/rm: commands/rm.o api/entry.o
+	gcc commands/rm.o api/entry.o -o commands/rm
+shell-core/shell: shell-core/shell.o api/entry.o
+	gcc shell-core/shell.o api/entry.o -o shell-core/shell
+commands/whoami: commands/whoami.o
+	gcc commands/whoami.o -o commands/whoami
 clean:
-	rm *.o api/*.o
+	rm commands/*.o api/*.o shell-core/*.o

@@ -3,7 +3,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int copy_file(const struct entry *source, const struct entry *destination) {
     char buffer[MAX_LEN];

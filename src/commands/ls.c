@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int entry_priority_compare(const struct dirent **a, const struct dirent **b) {
     const char *p = (*a)->d_name;

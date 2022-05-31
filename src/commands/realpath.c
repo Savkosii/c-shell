@@ -1,4 +1,4 @@
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int resolve_path(const struct entry *entry, const int option[]) {
     if (!is_entry_located(entry) && option['e'] == 1) {

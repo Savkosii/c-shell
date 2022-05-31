@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int change_file_mode(struct entry *entry, mode_t mode_bits) {
     if (!is_entry_located(entry)) {

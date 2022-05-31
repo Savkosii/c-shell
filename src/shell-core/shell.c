@@ -1,26 +1,4 @@
-#include <ctype.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <sys/stat.h>
-#include <pwd.h>
-#include <fcntl.h>
-#include <glob.h>
-
-#include "api/entry.h"
-
-#define BEGIN_WITH_DELIMITER 0100
-
-#define DELIMITER_CONCAT 0200
-
-#define EMPTY_BETWEEN_DEMILITER 0400
-
-static const char *sys_home_directory;
-
-static const char *app_home_directory;
-
-static int exec(char *line);
-
+#include "shell.h"
 
 /*   This function reads from stdin, omitting space char before
  *   reading the first non-space char and after reading the last one.
@@ -620,7 +598,6 @@ static int exec(char *line) {
 int main(){
     char line[MAX_LEN];
     int nbytes;
-    app_home_directory = getcwd(NULL, 0);
     setbuf(stdout, NULL);
     print_prompt();
     while ((nbytes = read_command(line, MAX_LEN)) != EOF) {

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "api/error.h"
+#include "../api/error.h"
 
 static void print_working_directory() {
     fprintf(stdout, "%s\n", getcwd(NULL, 0));

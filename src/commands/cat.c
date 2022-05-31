@@ -1,6 +1,6 @@
 #include <unistd.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static void load_string_builder(char *string_builder_buf, const char *source, const int option[], int *line_number_buf) {
     if (option['n'] == 1 || (option['b'] == 1 && *source != '\n')) {

@@ -3,7 +3,7 @@
 #include <unistd.h>
 #include <pwd.h>
 
-#include "api/error.h"
+#include "../api/error.h"
 
 static void print_username() {
     fprintf(stdout, "%s\n", getpwuid(getuid())->pw_name);

@@ -1,6 +1,6 @@
 #include <unistd.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int move_entry(const struct entry *source, const struct entry *destination) {
 	return rename(source->real_path, destination->real_path);

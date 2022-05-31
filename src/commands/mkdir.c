@@ -3,7 +3,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#include "api/entry.h"
+#include "../api/entry.h"
 
 static int make_directory_once(const struct entry *entry, mode_t mode_bits, const int option[]) {
     if (!is_directory(entry->previous)) {

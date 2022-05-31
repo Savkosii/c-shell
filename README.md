@@ -1,11 +1,11 @@
-## In brief
+## About This
 
-This project involves a simple program in imitation of GNU bash, plus several handy binary files serving as commands, all of which are fully implemented by C.
+A simple implementations of  GNU bash plus several handy commands.
 
 ## Quick Start
 
 ```bash
-$ git clone https://github.com/Savkosii/c-shell
+$ git clone https://github.com/Savkosii/c-shell.git
 
 $ cd c-shell/src
 
