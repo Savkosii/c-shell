@@ -1,13 +1,13 @@
 ## In brief
 
-This project involves a simple program in imitation of Linux bash, plus several useful executable files serving as commands, all of which are fully implemented by C.
+This project involves a simple program in imitation of GNU bash, plus several handy binary files serving as commands, all of which are fully implemented by C.
 
 ## Quick Start
 
 ```bash
-$ git clone https://github.com/Savkosii/ezShell
+$ git clone https://github.com/Savkosii/c-shell
 
-$ cd ezShell/src
+$ cd c-shell/src
 
 $ make && make clean
 
