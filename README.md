@@ -1,6 +1,6 @@
 ## About This
 
-A simple implementations of  GNU bash plus several handy commands.
+A simple C implementations of  GNU bash plus several handy commands.
 
 ## Quick Start
 
