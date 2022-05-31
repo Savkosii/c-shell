@@ -11,6 +11,8 @@ $ cd c-shell/src
 
 $ make && make clean
 
+$ cd shell-core
+
 $ ./shell
 ```
 
