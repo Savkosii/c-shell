@@ -125,8 +125,6 @@ Read from stream, stdin in default.
 Favorable options :
 
 ```bash
--b,    --number-nonblank  print number of non-empty output lines
--n,    --number           print number of all output lines
 -e,-E, --show-ends        display '$' at the end of each line
 -t,-T  --show-tabs        display TAB characters as '^I'
 -A     --show-all         equivalent to -ET
@@ -160,29 +158,32 @@ There are three digits in number that serves as mode bits (if not, we will add z
 Favorable option :
 
 ```bash
--u=[rwx]
+-u=
+-
++
 ```
 
 Example :
 
 ```bash
-chmod 0          foo
-chmod 000        foo
-chmod 777        foo
-chmod 775        foo
-chmod 77         foo
 chmod -u=        foo
 chmod -u=rwx     foo
-chmod -u= -u=rwx foo 
+chmod -u=rx      foo
+chmod -u=777     foo
+chmod -u=657     foo
+chmod -rw        foo
+chmod +x         foo
 ```
 
 Throw exception in the following cases :
 
 ```bash
-chmod         (missing operand)
-chmod 888 foo (invalid mode)
-chmod 74a foo (invalid mode)
-chmod -u  foo (missing operand)
+chmod               (missing operand)
+chmod -u=888 foo    (invalid mode)
+chmod -u=74a foo    (invalid mode)
+chmod -u     foo    (missing operand)
+chmod -s     foo    (invalid mode)
+chmod +s     foo    (invalid mode)
 ```
 
 Note :
