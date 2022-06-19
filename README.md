@@ -16,7 +16,7 @@ $ cd shell-core
 $ ./shell
 ```
 
-## Features of Shell
+## Features
 
 ### Prompt
 
