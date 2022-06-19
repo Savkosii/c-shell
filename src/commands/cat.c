@@ -1,122 +1,94 @@
+#include <ctype.h>
+#include <stdint.h>
 #include <unistd.h>
-
+#include <fcntl.h>
+#include <err.h>
 #include "../api/entry.h"
 
-static void load_string_builder(char *string_builder_buf, const char *source, const int option[], int *line_number_buf) {
-    if (option['n'] == 1 || (option['b'] == 1 && *source != '\n')) {
-        if (snprintf(string_builder_buf, MAX_LEN, "%6d  %s", *line_number_buf, source) > MAX_LEN) {
-            die("cat: Error: buffer overflowed");
-        }
-        *line_number_buf += 1;
 
-    } else if (snprintf(string_builder_buf, MAX_LEN, "%s", source) > MAX_LEN) {
-        die("cat: Error: buffer overflowed");
-    }
-}
-
-static void replace_end_of_line_sign(char *string_builder) {
-    size_t offset = strlen(string_builder);
-    if (offset + 1 > MAX_LEN) {
-        die("cat: Error: buffer overflowed");
-    }
-    sprintf(string_builder + offset - 1, "$\n");
-}
-
-static void replace_tab_char(char *string_builder) {
-    char *p, *q;
-    size_t offset;
-    int tab_count = 0;
-
-    for (p = string_builder; *p; p++) {
-        if (*p == '\t') tab_count++;
-    }
-
-    offset = strlen(string_builder);
-
-    if (tab_count > 0) {
-        if (tab_count + offset > MAX_LEN) {
-            die("cat: Error: buffer overflowed");
-        }
-
-        p = string_builder + offset - 1;
-        q = string_builder + offset + tab_count;
-
-        for (*q-- = '\0'; p >= string_builder; p--) {
-            if (*p != '\t') {
-                *q-- = *p;
-            }
-            else {
-                *q-- = 'I';
-                *q-- = '^';
-            }
+static int read_bytes_split_by(int fd, void *buffer, 
+                            size_t max_len, int8_t delimiter) {
+    int8_t byte_buf;
+    size_t count = 0;
+    while (read(fd, &byte_buf, sizeof(byte_buf)) != 0 && count < max_len) {
+        *(int8_t *)buffer++ = byte_buf;
+        count++;
+        if (byte_buf == delimiter) {
+            break;
         }
     }
+    return count;
 }
 
-static int read_file_once(struct entry *file, const int option[]) {
-    FILE *stream;
-    char read_buf[MAX_LEN], string_builder[MAX_LEN];
+
+static bool is_whitespace_line(int8_t *line, size_t len) {
+    for (int8_t *p = line; p < line + len; p++) {
+        if (!isspace(*p)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+
+static int show_source(struct entry *file, const int option[]) {
+    int fd;
+    int8_t line_buf[MAX_LEN];
     int line_number = 1, empty_line_count = 0;
 
     if (strcmp(file->received_path, "-") == 0) {
-        stream = stdin;
+        fd = fileno(stdin);
 
-    } else if (!is_entry_located(file)) {
-        log_error("cat: %s: no such a file or directory", file->received_path);
-        return -1;
-
-    } else if (is_directory(file)) {
-        log_error("cat: %s: is a directory", file->received_path);
-        return -1;
-
-    } else if (!is_file_read_permitted(file)) {
-        log_error("cat: cannot open '%s': Permission denied", file->received_path);
-        return -1;
-
-    } else if ((stream = fopen(file->received_path, "r")) == NULL) {
-        log_error("cat: cannot open '%s'", file->received_path);
+    } else if ((fd = open(file->received_path, O_RDONLY)) == -1) {
+        warn("cannot access file '%s'", file->received_path);
         return -1;
     }
 
-    while (fgets(read_buf, MAX_LEN, stream) != NULL) {
+    int line_whitespace_flag = false;
+    int nbytes = 0;
+    while ((nbytes = read_bytes_split_by(fd, line_buf, sizeof(line_buf), '\n')) != 0) {
         if (option['s'] == 1) {
-            if (*read_buf != '\n') {
-                empty_line_count = 0;
+            if (is_whitespace_line(line_buf, nbytes)) {
+                if (!line_whitespace_flag) {
+                    line_whitespace_flag = true;
+                } else {
+                    continue;
+                }
+            } else {
+                line_whitespace_flag = false;
             }
-            else {
-                empty_line_count++;
-                if (empty_line_count > 1) continue;
+        }
+
+        for (size_t i = 0; i < nbytes; i++) {
+            if (option['e'] == 1 && line_buf[i] == '\n') {
+                fputc('$', stdout);
             }
+        
+            if (option['t'] == 1 && line_buf[i] == '\t') {
+                fputs("^I", stdout);
+                continue;
+            }
+
+            fputc(line_buf[i], stdout);
         }
-
-        load_string_builder(string_builder, read_buf, option, &line_number);
-
-        if (option['e'] == 1) {
-            replace_end_of_line_sign(string_builder);
-        }
-
-        if (option['t'] == 1) {
-            replace_tab_char(string_builder);
-        }
-
-        fputs(string_builder, stdout);
     }
-
     return 0;
 }
 
-static int read_files(char *paths[], size_t paths_nums, const int option[]) {
+
+static int show_sources(char *paths[], size_t paths_nums, const int option[]) {
     int retval = 0;
 
     for (size_t i = 0; i < paths_nums; i++) {
         struct entry *entry = get_entries_chain(paths[i]);
-        retval |= read_file_once(entry, option);
+        retval |= show_source(entry, option);
         if (i < paths_nums - 1) fputc('\n', stdout);
         free_entry(entry);
     }
 
     return retval;
 }
+
 
 static bool try_match_option(const char *arg, int *option_buf) {
     const char *p;
@@ -128,14 +100,8 @@ static bool try_match_option(const char *arg, int *option_buf) {
                 option_buf['t'] = 1;
                 option_buf['e'] = 1;
                 
-            } else if (strcmp(p, "number-nonblank") == 0) {
-                option_buf['b'] = 1;
-
             } else if (strcmp(p, "show-ends") == 0) {
                 option_buf['e'] = 1;
-
-            } else if (strcmp(p, "number") == 0) {
-                option_buf['n'] = 1;
 
             } else if (strcmp(p, "squeeze-blank") == 0) {
                 option_buf['s'] = 1;
@@ -154,16 +120,8 @@ static bool try_match_option(const char *arg, int *option_buf) {
                     option_buf['t'] = 1;
                     option_buf['e'] = 1;
 
-                } else if (*p == 'b') {
-                    option_buf['b'] = 1;
-                    option_buf['n'] = 0;
-
                 } else if (*p == 'e' || *p == 'E') {
                     option_buf['e'] = 1;
-
-                } else if (*p == 'n') {
-                    option_buf['n'] = 1;
-                    option_buf['b'] = 0;
 
                 } else if (*p == 's') {
                     option_buf['s'] = 1;
@@ -179,10 +137,12 @@ static bool try_match_option(const char *arg, int *option_buf) {
         }
         return true;
     }
-    else return false;
+    return false;
 }
 
-static void parse(int argc, char *argv[], int *option_buf, char *paths_buf[], size_t *paths_nums_buf) {
+
+static void parse_argv(int argc, char *argv[], int *option_buf, 
+                    char *paths_buf[], size_t *paths_nums_buf) {
     size_t paths_nums = 0;
 
     for (int i = 1; i < argc; i++) {
@@ -199,13 +159,13 @@ static void parse(int argc, char *argv[], int *option_buf, char *paths_buf[], si
     *paths_nums_buf = paths_nums;
 }
 
+
 int main(int argc, char *argv[], char *envp[]) {
     int option[128];
     char *paths[MAX_SIZE];
     size_t paths_nums;
-    puts_program_name(argv[0]);
     memset(option, 0, sizeof option);
     setbuf(stdout, NULL);
-    parse(argc, argv, option, paths, &paths_nums);
-    return read_files(paths, paths_nums, option);
+    parse_argv(argc, argv, option, paths, &paths_nums);
+    return show_sources(paths, paths_nums, option);
 }
