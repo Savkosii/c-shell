@@ -1,135 +1,180 @@
 #include <ctype.h>
 #include <unistd.h>
+#include <err.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
 #include "../api/entry.h"
 
-static int change_file_mode(struct entry *entry, mode_t mode_bits) {
-    if (!is_entry_located(entry)) {
-        log_error("chmod: cannot access '%s': No such file or directory", entry->received_path);
+
+typedef enum MODE_CHANGE_TYPE {
+    RESET,
+    REMOVE,
+    APPEND
+} MODE_CHANGE_TYPE;
+
+
+static int change_file_mode(struct entry *entry, mode_t mode, MODE_CHANGE_TYPE type) {
+    if (type == APPEND) {
+        entry->attribute->st_mode |= mode;
+    } else if (type == REMOVE) {
+        entry->attribute->st_mode ^= mode;
+    } else {
+        entry->attribute->st_mode = mode;
+    }
+    if (chmod(entry->real_path, entry->attribute->st_mode) == -1) {
+        warn("cannot access '%s'", entry->received_path);
         return -1;
     }
-
-    if (!is_directory_read_permitted(entry->previous)) {
-        log_error("chmod: cannot access '%s': Permission denied", entry->received_path);
-        return -1;
-    }
-
-    return chmod(entry->real_path, mode_bits);
+    return 0;
 }
 
-static int change_files_mode(char *paths[], size_t path_nums, mode_t mode_bits) {
+
+static int change_files_mode(char *paths[], size_t path_nums, 
+                            mode_t mode, MODE_CHANGE_TYPE type) {
     int retval = 0;
 
     for (size_t i = 0; i < path_nums; i++) {
         struct entry *entry = get_entries_chain(paths[i]);
-        retval |= change_file_mode(entry, mode_bits);
+        retval |= change_file_mode(entry, mode, type);
         free_entry(entry);
     }
     
     return retval;
 }
 
-static bool is_nums_sequence(const char *string) {
-    while (*string) {
-        if (!isdigit(*string++)) return false;
+
+static bool is_rwx_mode(const char *str) {
+    if (*str == 0 || strlen(str) > 3) {
+        return false;
+    }
+    for (const char *p = str; *p; p++) {
+        if (*p != 'r' && *p != 'w' && *p != 'x') {
+            return false;
+        }
     }
     return true;
 }
 
-static mode_t analyze_mode_bits(const char *string){
-    char buffer[3];
-    mode_t mode_bits = 0;
-    size_t len = strlen(string);
-    memset(buffer, 0, sizeof (buffer));
 
-    if (len > 3 || !is_nums_sequence(string)) {
-        die("chmod: invalid mode: '%s'", string);
+static bool is_num_mode(const char *str) {
+    if (*str == 0 || strlen(str) > 3) {
+        return false;
     }
-
-    if (len == 1) {
-        buffer[2] = *string;
-
-    } else if (len == 2) {
-        buffer[1] = *string;
-        buffer[2] = *(string + 1);
-
-    } else {
-        memcpy(buffer, string, sizeof (buffer));
+    for (const char *p = str; *p; p++) {
+        if (*p < '0' || *p > '7') {
+            return false;
+        }
     }
-
-    int n = *buffer - '0';
-    if (n == 1) mode_bits |= S_IXUSR;
-    if (n == 2) mode_bits |= S_IWUSR;
-    if (n == 3) mode_bits |= S_IXUSR | S_IWUSR;
-    if (n == 4) mode_bits |= S_IRUSR;
-    if (n == 5) mode_bits |= S_IXUSR | S_IRUSR;
-    if (n == 6) mode_bits |= S_IRUSR | S_IWUSR;
-    if (n == 7) mode_bits |= S_IRUSR | S_IWUSR | S_IXUSR;
-
-    n = *(buffer + 1) - '0';
-    if (n == 1) mode_bits |= S_IXGRP;
-    if (n == 2) mode_bits |= S_IWGRP;
-    if (n == 3) mode_bits |= S_IXGRP | S_IWGRP;
-    if (n == 4) mode_bits |= S_IRGRP;
-    if (n == 5) mode_bits |= S_IXGRP | S_IRGRP;
-    if (n == 6) mode_bits |= S_IRGRP | S_IWGRP;
-    if (n == 7) mode_bits |= S_IRGRP | S_IWGRP | S_IXGRP;
-
-    n = *(buffer + 2) - '0';
-    if (n == 1) mode_bits |= S_IXOTH;
-    if (n == 2) mode_bits |= S_IWOTH;
-    if (n == 3) mode_bits |= S_IXOTH | S_IWOTH;
-    if (n == 4) mode_bits |= S_IROTH;
-    if (n == 5) mode_bits |= S_IXOTH | S_IROTH;
-    if (n == 6) mode_bits |= S_IROTH | S_IWOTH;
-    if (n == 7) mode_bits |= S_IROTH | S_IWOTH | S_IXOTH;
-    return mode_bits;
+    return true;
 }
 
-static bool try_match_option(const char *arg, int *option_buf, mode_t *mode_bits_buf) {
-    const char *p;
-    mode_t mode_bits = 0;
 
-    if (*arg == '-' && *(arg + 1) != '\0') {
-        p = arg + 1;
-        if (*p == 'u') {
-            if (*(p + 1) == '=') {
-                p += 2;
-
-            } else {
-                die("chmod: option requires an argument -- 'm'");
-            }
-
+static mode_t __parse_rwx_mode(const char *mode_str) {
+    mode_t mode = 0;
+    const mode_t READ_MODE = S_IRUSR | S_IRGRP | S_IROTH;
+    const mode_t WRITE_MODE = S_IWUSR | S_IWGRP;
+    const mode_t EXEC_MODE = S_IXUSR | S_IXGRP | S_IXOTH; 
+    for (const char *p = mode_str; *p; p++) {
+        if (*p == 'r') {
+            mode |= READ_MODE;
+        } else if (*p == 'w') {
+            mode |= WRITE_MODE;
         } else {
-            die("chmod: unknown options -- '%s'", p);
+            mode |= EXEC_MODE;
         }
+    }
+    return mode;
+}
 
-        for (const char *q = p; *q; q++) {
-            if (*q == 'r') {
-                mode_bits |= S_IRUSR | S_IRGRP | S_IROTH;
 
-            } else if (*q == 'w') {
-                mode_bits |= S_IWUSR | S_IWGRP;
+static mode_t __parse_num_mode(const char *mode_str){
+    char bits[] = {0, 0, 0};
+    mode_t mode = 0;
 
-            } else if (*q == 'x') {
-                mode_bits |= S_IXUSR | S_IXGRP | S_IXOTH;
+    for (size_t i = 0; mode_str[i]; i++) {
+        bits[3 - i] = mode_str[i] - '0';
+    }
 
-            } else {
-                die("chmod: invalid mode '%s'", p);
-            }
+    const mode_t READ_MODE[]  = {S_IRUSR, S_IRGRP, S_IROTH};
+    const mode_t WRITE_MODE[] = {S_IWUSR, S_IWGRP, S_IWOTH};
+    const mode_t EXEC_MODE[] = {S_IXUSR, S_IXGRP, S_IXOTH};
+
+    for (size_t i = 0; i < 3; i++) {
+        char bit = bits[i];
+        if (bit / 4 > 0) {
+            mode |= READ_MODE[i];
+            bit %= 4;
         }
+        if (bit / 2 > 0) {
+            mode |= WRITE_MODE[i];
+            bit %= 2;
+        }
+        if (bit / 1 > 0) {
+            mode |= EXEC_MODE[i];
+        }
+    }
 
-        *mode_bits_buf = mode_bits;
+    return mode;
+}
+
+
+static mode_t __parse_mode(const char *mode_str) {
+    mode_t mode = 0;
+    if (is_rwx_mode(mode_str)) {
+        mode = __parse_rwx_mode(mode_str);
+    } 
+    if (is_num_mode(mode_str)) {
+        mode = __parse_num_mode(mode_str);
+    }
+    return mode;
+}
+
+
+static bool is_valid_mode(const char *mode_str) {
+    return is_rwx_mode(mode_str) || is_num_mode(mode_str) || *mode_str == 0;
+}
+
+
+static bool match_mode(const char *arg, mode_t *mode_buf, MODE_CHANGE_TYPE *type) {
+    const char *p = arg;
+
+    if (*arg != '-' && *arg != '+') {
+        return false;
+    }
+
+    if (strncmp(p, "-u=", 3) == 0) {
+        p += 3;
+        *type = RESET;
+    } else if (strncmp(p, "-", 1) == 0) {
+        p += 1;
+        *type = REMOVE;
+    } else if (strncmp(p, "+", 1) == 0) {
+        p += 1;
+        *type = APPEND;
+    } 
+    
+    if (p == arg) {
+        return false;
+    }
+
+    if (*p == 0) {
+        *mode_buf = 0;
         return true;
     }
-    else return false;
+
+    if (!is_valid_mode(p)) {
+        die("chmod: invalid mode '%s'", p);
+    }
+
+    *mode_buf = __parse_mode(p);
+
+    return true;
 }
 
-static void parse(int argc, char *argv[], mode_t *mode_bits_buf, int *option_buf, char *paths_buf[], size_t *path_nums_buf) {
-    int flag = 0;
-    mode_t mode_bits = 0;
+
+static void parse_argv(int argc, char *argv[], 
+                        mode_t *mode_buf, MODE_CHANGE_TYPE *type, 
+                        char *paths_buf[], size_t *path_nums_buf) {
     size_t paths_nums = 0;
 
     if (argc < 3) {
@@ -137,21 +182,7 @@ static void parse(int argc, char *argv[], mode_t *mode_bits_buf, int *option_buf
     }
 
     for (int i = 1; i < argc; i++) {
-        if (try_match_option(argv[i], option_buf, &mode_bits)) {
-            flag = 1;
-        }
-    }
-
-    if (flag == 1) {
-        for (int i = 1; i < argc; i++) {
-            if (!try_match_option(argv[i], option_buf, &mode_bits)) {
-                paths_buf[paths_nums++] = argv[i];
-            }
-        }
-
-    } else {
-        mode_bits = analyze_mode_bits(argv[1]);
-        for (int i = 2; i < argc; i++) {
+        if (!match_mode(argv[i], mode_buf, type)) {
             paths_buf[paths_nums++] = argv[i];
         }
     }
@@ -160,18 +191,15 @@ static void parse(int argc, char *argv[], mode_t *mode_bits_buf, int *option_buf
         die("chmod: missing operand");
     }
 
-    *mode_bits_buf = mode_bits;
     *path_nums_buf = paths_nums;
 }
 
 
 int main (int argc, char *argv[]){
     char *paths[MAX_SIZE];
-    int option[128];
     size_t path_nums;
     mode_t mode_bits;
-    puts_program_name(argv[0]);
-    memset(option, 0, sizeof option);
-    parse(argc, argv, &mode_bits, option, paths, &path_nums);
-    return change_files_mode(paths, path_nums, mode_bits);
+    MODE_CHANGE_TYPE type;
+    parse_argv(argc, argv, &mode_bits, &type, paths, &path_nums);
+    return change_files_mode(paths, path_nums, mode_bits, type);
 }
